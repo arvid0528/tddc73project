@@ -19,6 +19,7 @@ interface CarouselProps<T> {
     itemWidth: number;
     itemHeight?: number;
     itemSpacing?: number;
+    carouselStyle?: StyleProp<ViewStyle>;
     itemStyle?: StyleProp<ViewStyle>;
     indicators?: IndicatorProps;
     renderItem: (item: T, index: number) => React.ReactNode;
@@ -27,6 +28,7 @@ interface CarouselProps<T> {
 // Options and styling for the indicators
 interface IndicatorProps {
     visible?: boolean;
+    carouselStyle?: StyleProp<ViewStyle>;
     containerStyle?: StyleProp<ViewStyle>;
     indicatorStyle?: StyleProp<ViewStyle>;
     activeStyle?: StyleProp<ViewStyle>;
@@ -39,6 +41,7 @@ export default function Carousel<T>(
         itemWidth, 
         itemHeight=itemWidth, 
         itemSpacing=0,
+        carouselStyle={},
         itemStyle={},
         indicators
     }: CarouselProps<T>) {
@@ -75,7 +78,7 @@ export default function Carousel<T>(
     };
 
     return (
-        <View >
+        <View style={[styles.carouselContainer, carouselStyle]}>
             <FlatList
                 data={data}
 
@@ -135,9 +138,15 @@ export default function Carousel<T>(
 
 // Defualt styling values
 const styles = StyleSheet.create({
+    carouselContainer: {
+        alignItems: 'center',
+        width: '100%',
+    },
     indicatorContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
+        maxWidth: SCREEN_WIDTH,
+        flexWrap: 'wrap',
     },
     indicator: {
         borderWidth: 1,
