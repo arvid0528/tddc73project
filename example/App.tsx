@@ -7,28 +7,39 @@ import {
     View,
     StatusBar,
 } from 'react-native';
-import { Carousel, RefreshDrag } from '../sdk/src';
+import { Carousel, CarouselHandle, RefreshDrag } from '../sdk/src';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface post {
-    id: string;
-    title: string;
+interface imagePost {
     image: string | number;
+    author: string;
 }
 
 export default function App() {
-    const [images, setImages] = React.useState<post[]>([]);
+    const [allImages, setAllImages] = React.useState<{ [key: string]: imagePost[] }>({});
     const [fetchError, setFetchError] = React.useState('');
 
     React.useEffect(() => {
-        fetchImages();
+        fetchAllImages();
     }, []);
 
-    const fetchImages = async () => {
+    const categories = [
+        "wildlife",
+        "mountains",
+        "forest",
+        "ocean",
+        "birds",
+        "flowers",
+        "desert",
+    ];
+
+    // Fetch images from Unsplash API using category
+    // Return list of imagePosts
+    const fetchCategory = async (category: string): Promise<imagePost[]> => {
         try {
             const response = await fetch(
-                "https://api.unsplash.com/photos/random?count=10",
+                `https://api.unsplash.com/search/photos?query=${encodeURIComponent(category)}&per_page=10&order_by=relevant`,
                 {
                     headers: {
                         Authorization: "Client-ID HrLjiB3cyMVxgDDo9bkr_otuzlOdBslX4alDN2AmV3E",
@@ -40,36 +51,34 @@ export default function App() {
             console.log("URL:", response.url);
 
             const json = await response.json();
-
-            const images: post[] = json
-                .slice(0, 10) // Limit to first 10 items
-                .map((post: any) => ({
-                    id: post.id,
-                    title: post.description || "Untitled",
+            const images: imagePost[] = json.results.map(
+                (post: any) => ({
                     image: post.urls.small,
-                }));
-            
-            console.log(`Fetched ${images.length} images:`, images);
-            setFetchError('');
-
-            setImages(images);
+                    author: post.user.name,
+                })
+            );
+            return images;
         } catch (error) {
             console.log(error);
-            setImages([
-                { id: '1', title: 'Image 1', image: require('./src/assets/img1.jpg') },
-                { id: '2', title: 'Image 2', image: require('./src/assets/img2.jpg') },
-                { id: '3', title: 'Image 3', image: require('./src/assets/img3.jpg') },
-                { id: '4', title: 'Image 4', image: require('./src/assets/img4.jpg') },
-                { id: '5', title: 'Image 5', image: require('./src/assets/img5.jpg') },
-            ])
-            setFetchError("Failed to fetch images: Using local backups");
+            return [];
         }
+    };
+
+    const fetchAllImages = async () => {
+        let allImages: { [key: string]: imagePost[] } = {};
+        for (const category of categories) {
+            allImages[category] = await fetchCategory(category);
+        }
+        setAllImages(allImages);
     };
 
     const handleRefresh = () => {
         console.log("Refreshing images...");
-        return fetchImages();
+        carouselRefs.current?.forEach(ref => ref?.scrollToIndex(0));
+        return fetchAllImages();
     };
+
+    const carouselRefs = React.useRef<Array<CarouselHandle | null>>([]);
 
     return (
         <>
@@ -85,54 +94,74 @@ export default function App() {
                         backgroundColor: '#888',
                     }}
                 >
-                    {
-                        images.length > 0 ? (
-                    <Carousel 
-                            itemWidth={300}
-                            itemSpacing={20}
-                            carouselStyle={styles.carousel}
-                            itemStyle={{
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                padding: 20,
-                            }}
-                            indicators={{
-                                containerStyle: {
-                                    width: 300,
-                                },
-                                indicatorStyle: {
-                                    marginTop: 20,
-                                    width: 10,
-                                },
-                                activeStyle: {
-                                    backgroundColor: 'red',
-                                }
-                            }}
-                            data={images}
-                            renderItem={( item ) => (
-                                <Image 
-                                    source={typeof item.image === 'string' ? { uri: item.image } : item.image}
-                                    style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                    <>
+
+                    {categories.map((category, index) => {
+                        return (
+                            <View 
+                                id={category}
+
+                            >
+                                <Text 
+                                    style={{
+                                        textAlign: 'center',
+                                        fontSize: 18,
+                                        backgroundColor: '#fff',
+                                        paddingTop: 10,
+                                    }}
+                                >
+                                    {category.toUpperCase()}
+                                </Text>
+                                <Carousel 
+                                    ref={(ref) => {
+                                        carouselRefs.current[index] = ref;
+                                    }}
+                                    itemWidth={250}
+                                    itemSpacing={10}
+                                    carouselStyle={styles.carousel}
+                                    itemStyle={{
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        paddingTop: 10,
+                                    }}
+                                    indicators={{
+                                        containerStyle: {
+                                            width: 300,
+                                        },
+                                        indicatorStyle: {
+                                            marginTop: 20,
+                                            width: 10,
+                                        },
+                                        activeStyle: {
+                                            backgroundColor: 'red',
+                                        }
+                                    }}
+                                    data={allImages[category] ?? []}
+                                    renderItem={( item ) => (
+                                        <View style={{
+                                            width: '100%',
+                                            height: '100%',
+                                            borderWidth: 2,
+                                            borderColor: '#000',
+                                        }}>
+                                            <Image 
+                                                source={typeof item.image === 'string' ? { uri: item.image } : item.image}
+                                                style={{ width: '100%', height: '90%', resizeMode: 'contain' }}
+                                            />
+                                            <Text style={{
+                                                textAlign: 'center',
+                                                fontSize: 14,
+                                                color: '#000',
+                                            }}>
+                                                {item.author}
+                                            </Text>
+                                        </View>
+                                    )}
                                 />
-                            )}
-                    />
-                    )
-                    : (
-                        <View style={{
-                            flex: 1,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            height: '100%',
-                            width: '100%',
-                            backgroundColor: '#fff',
-                        }}>
-                            <Text style={{
-                                fontSize: 18,
-                                color: '#000',
-                            }}>No images to display
-                            </Text>
-                        </View>
-                    )}
+                            </View>
+                        );
+                    })}
+                    </>
                 </RefreshDrag>
             </SafeAreaView>
         </>

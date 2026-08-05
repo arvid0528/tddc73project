@@ -34,107 +34,139 @@ interface IndicatorProps {
     activeStyle?: StyleProp<ViewStyle>;
 }
 
-export default function Carousel<T>(
-    { 
-        data, 
-        renderItem, 
-        itemWidth, 
-        itemHeight=itemWidth, 
-        itemSpacing=0,
-        carouselStyle={},
-        itemStyle={},
-        indicators
-    }: CarouselProps<T>) {
+export interface CarouselHandle {
+    scrollToIndex: (index: number) => void;
+}
+
+const Carousel = React.forwardRef<CarouselHandle, CarouselProps<any>>(
+    function Carousel(
+        { 
+            data, 
+            renderItem, 
+            itemWidth, 
+            itemHeight=itemWidth, 
+            itemSpacing=0,
+            carouselStyle={},
+            itemStyle={},
+            indicators
+        }: CarouselProps<any>,
+        ref: React.ForwardedRef<CarouselHandle>
+    ) {
+            
+        // Defaul indicator styling, can be overridden
+        const indicatorConfig: IndicatorProps = {
+            visible: true,
+            containerStyle: [
+                styles.indicatorContainer,
+                indicators?.containerStyle,
+            ],
+            indicatorStyle: [
+                styles.indicator,
+                indicators?.indicatorStyle,
+            ],
+            activeStyle: [
+                styles.selectedIndicator,
+                indicators?.activeStyle,
+            ],
+        };
+
+        const [selectedIndex, setSelectedIndex] = React.useState(0);
+
+        // Calculates the index of the currently selected item based on scroll position
+        const handleScrollEnd = (event: any) => {
+            const offsetX = event.nativeEvent.contentOffset.x;
+            
+            // Index for the selected item in list
+            const index = Math.round(
+                offsetX / (itemWidth + itemSpacing)
+            );
+            
+            setSelectedIndex(index);
+        };
+
+        const flatListRef = React.useRef<FlatList>(null);
+
+        // Controls the exposed scrollTOIndex method
+        React.useImperativeHandle(ref, () => ({
+            scrollToIndex(index: number) {
+                const offset = index * (itemWidth + itemSpacing);
+
+                flatListRef.current?.scrollToOffset({
+                    animated: true,
+                    offset,
+                    });
+
+                setSelectedIndex(index);
+            },
+        }));
         
-    // Defaul indicator styling, can be overridden
-    const indicatorConfig: IndicatorProps = {
-        visible: true,
-        containerStyle: [
-            styles.indicatorContainer,
-            indicators?.containerStyle,
-        ],
-        indicatorStyle: [
-            styles.indicator,
-            indicators?.indicatorStyle,
-        ],
-        activeStyle: [
-            styles.selectedIndicator,
-            indicators?.activeStyle,
-        ],
-    };
+        return (
+            <View style={[styles.carouselContainer, carouselStyle]}>
+                <FlatList
+                    ref={flatListRef}
 
-    const [selectedIndex, setSelectedIndex] = React.useState(0);
+                    data={data}
 
-    // Calculates the index of the currently selected item based on scroll position
-    const handleScrollEnd = (event: any) => {
-        const offsetX = event.nativeEvent.contentOffset.x;
-        
-        // Index for the selected item in list
-        const index = Math.round(
-            offsetX / (itemWidth + itemSpacing)
-        );
+                    horizontal
 
-        setSelectedIndex(index);
-    };
+                    showsHorizontalScrollIndicator={false}
 
-    return (
-        <View style={[styles.carouselContainer, carouselStyle]}>
-            <FlatList
-                data={data}
+                    snapToInterval={itemWidth + itemSpacing}
 
-                horizontal
+                    decelerationRate="fast"
 
-                showsHorizontalScrollIndicator={false}
+                    disableIntervalMomentum
 
-                snapToInterval={itemWidth + itemSpacing}
+                    // Center items in the carousel
+                    contentContainerStyle={{
+                        paddingHorizontal:
+                            (SCREEN_WIDTH - itemWidth) / 2,
+                    }}
+                    
+                    onMomentumScrollEnd={handleScrollEnd}
 
-                decelerationRate="fast"
-
-                disableIntervalMomentum
-
-                contentContainerStyle={{
-                    paddingHorizontal:
-                        (SCREEN_WIDTH - itemWidth) / 2,
-                }}
-                
-                onMomentumScrollEnd={handleScrollEnd}
-
-                renderItem={({ item, index }) => (
+                    renderItem={({ item, index }) => (
+                        <View 
+                            style={[{
+                                width: itemWidth,
+                                height: itemHeight,
+                                marginRight: itemSpacing,
+                                alignItems: 'center',
+                                
+                                },
+                                itemStyle
+                            ]}>
+                            {renderItem(item, index)}
+                        </View>
+                    )}
+                />
+                {indicatorConfig.visible && (
                     <View 
-                        style={[{
-                            width: itemWidth,
-                            height: itemHeight,
-                            marginRight: itemSpacing,
-                            alignItems: 'center',
-                            
-                            },
-                            itemStyle
-                        ]}>
-                        {renderItem(item, index)}
+                        style={[indicatorConfig.containerStyle]}>
+                        {data.map((item, index) => (
+                            <View 
+                                key={index} 
+                                style={
+                                    index === selectedIndex ? 
+                                        [
+                                            indicatorConfig.indicatorStyle,
+                                            indicatorConfig.activeStyle,
+                                        ] 
+                                        : indicatorConfig.indicatorStyle
+                                }>
+                            </View>
+                        ))}
                     </View>
                 )}
-            />
-            {indicatorConfig.visible && (
-                <View 
-                    style={[indicatorConfig.containerStyle]}>
-                    {data.map((item, index) => (
-                        <View 
-                            key={index} 
-                            style={
-                                index === selectedIndex ? 
-                                    [
-                                        indicatorConfig.indicatorStyle,
-                                        indicatorConfig.activeStyle,
-                                    ] 
-                                    : indicatorConfig.indicatorStyle
-                            }>
-                        </View>
-                    ))}
-                </View>
-            )}
-        </View>
-    );
-}
+            </View>
+        );
+    }
+)
+
+// Export with the props and the handler
+export default Carousel as <T>(
+    props: CarouselProps<T> & React.RefAttributes<CarouselHandle>
+) => React.ReactElement;
 
 // Defualt styling values
 const styles = StyleSheet.create({

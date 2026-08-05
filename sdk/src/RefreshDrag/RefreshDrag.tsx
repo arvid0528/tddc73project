@@ -25,21 +25,17 @@ export interface RefreshDragProps
     children: React.ReactNode;
     onRefresh: () => Promise<void> | void;
     refreshHeight?: number;
+
     renderRefresh?: (
         isRefreshing: boolean,
         isReadyToRefresh: boolean,
     ) => React.ReactNode;
+
     style?: StyleProp<ViewStyle>;
     scrollViewStyle?: StyleProp<ViewStyle>;
     contentContainerStyle?: StyleProp<ViewStyle>;
 }
 
-/**
- * A dependency-free pull-to-reveal refresh container.
- *
- * Its children start above the refresh view. Pulling down exposes the view and
- * releasing at the top calls onRefresh before returning children to their place.
- */
 export default function RefreshDrag({
     children,
     onRefresh,
@@ -50,9 +46,11 @@ export default function RefreshDrag({
     contentContainerStyle,
     ...scrollViewProps
 }: RefreshDragProps) {
+
     const [isRefreshing, setIsRefreshing] = React.useState(false);
     const [isReadyToRefresh, setIsReadyToRefresh] = React.useState(false);
     const [viewportHeight, setViewportHeight] = React.useState(0);
+
     const scrollViewRef = React.useRef<ScrollView>(null);
     const hasTriggeredRefresh = React.useRef(false);
     const hasSetInitialOffset = React.useRef(false);
@@ -74,12 +72,14 @@ export default function RefreshDrag({
         return () => cancelAnimationFrame(frame);
     }, [resetScrollPosition, viewportHeight]);
 
+
     const refresh = async () => {
         if (isRefreshing) {
             return;
         }
 
         setIsRefreshing(true);
+
         try {
             await onRefresh();
         } finally {
@@ -89,8 +89,13 @@ export default function RefreshDrag({
         }
     };
 
-    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const isReady = event.nativeEvent.contentOffset.y <= 0;
+
+    const handleScroll = (
+        event: NativeSyntheticEvent<NativeScrollEvent>
+    ) => {
+        const y = event.nativeEvent.contentOffset.y;
+        const isReady = y <= 0;
+
         setIsReadyToRefresh(previous =>
             previous === isReady ? previous : isReady,
         );
@@ -100,17 +105,20 @@ export default function RefreshDrag({
         }
     };
 
+
     const handleScrollEndDrag = (
-        event: NativeSyntheticEvent<NativeScrollEvent>,
+        event: NativeSyntheticEvent<NativeScrollEvent>
     ) => {
+        const y = event.nativeEvent.contentOffset.y;
+
         if (
-            event.nativeEvent.contentOffset.y <= 0 &&
+            y <= 0 &&
             !hasTriggeredRefresh.current
         ) {
             hasTriggeredRefresh.current = true;
+
             refresh().catch(console.error);
-        }
-        else {
+        } else if (!isRefreshing && y < refreshHeight) {
             resetScrollPosition(true);
         }
     };
@@ -119,64 +127,101 @@ export default function RefreshDrag({
         setViewportHeight(event.nativeEvent.layout.height);
     };
 
+
+    const refreshContent =
+        renderRefresh
+            ? renderRefresh(
+                isRefreshing,
+                isReadyToRefresh
+            )
+            :
+            (
+                isRefreshing
+                    ? <ActivityIndicator />
+                    :
+                    <Text>
+                        {
+                            isReadyToRefresh
+                                ? 'Release to refresh'
+                                : 'Pull to refresh'
+                        }
+                    </Text>
+            );
+
+
     return (
         <View style={[styles.container, style]} onLayout={handleLayout}>
-            <View 
-                pointerEvents="none" 
-                style={[styles.refreshView, { height: refreshHeight }]}>
-                {
-                    isRefreshing ? (
-                        <ActivityIndicator />
-                    ) : (
-                        <Text>
-                            {isReadyToRefresh ? 'Release to refresh' : 'Pull to refresh'}
-                        </Text>
-                    )
-                }
+
+            <View
+                pointerEvents="none"
+                style={[
+                    styles.refreshView,
+                    {
+                        height: refreshHeight
+                    }
+                ]}
+            >
+                {refreshContent}
             </View>
+
+
             <ScrollView
                 {...scrollViewProps}
                 ref={scrollViewRef}
-                style={[styles.scrollView, scrollViewStyle]}
+
+                style={[
+                    styles.scrollView,
+                    scrollViewStyle
+                ]}
+
                 contentContainerStyle={[
                     styles.content,
                     { minHeight: viewportHeight + refreshHeight },
-                    contentContainerStyle,
+                    contentContainerStyle
                 ]}
-                bounces
-                alwaysBounceVertical
+
+                bounces={true}
+                alwaysBounceVertical={true}
                 overScrollMode="always"
+
                 onScroll={handleScroll}
                 onScrollEndDrag={handleScrollEndDrag}
+
                 scrollEventThrottle={16}
             >
-                <View style={[styles.refreshSpacer, { height: refreshHeight }]} />
+                <View style={{ height: refreshHeight }} />
                 {children}
+
             </ScrollView>
+
         </View>
     );
 }
 
+
 const styles = StyleSheet.create({
+
     container: {
         flex: 1,
         overflow: 'hidden',
     },
+
     refreshView: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+
         alignItems: 'center',
         justifyContent: 'center',
-        left: 0,
-        position: 'absolute',
-        right: 0,
-        top: 0,
     },
+
     scrollView: {
         flex: 1,
-        zIndex: 1,
     },
+
     content: {
         flexGrow: 1,
     },
-    refreshSpacer: {
-    },
+
 });
