@@ -10,7 +10,9 @@ import {
 import { Carousel, CarouselHandle, RefreshDrag } from '../sdk/src';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@react-native-vector-icons/material-icons'
 
+// Structure for a single image post taken from Unsplash API
 interface imagePost {
     image: string | number;
     author: string;
@@ -18,7 +20,6 @@ interface imagePost {
 
 export default function App() {
     const [allImages, setAllImages] = React.useState<{ [key: string]: imagePost[] }>({});
-    const [fetchError, setFetchError] = React.useState('');
 
     React.useEffect(() => {
         fetchAllImages();
@@ -34,7 +35,7 @@ export default function App() {
         "desert",
     ];
 
-    // Fetch images from Unsplash API using category
+    // Fetch images from Unsplash API with specified category
     // Return list of imagePosts
     const fetchCategory = async (category: string): Promise<imagePost[]> => {
         try {
@@ -64,6 +65,7 @@ export default function App() {
         }
     };
 
+    // Fetch image of all categories and store as dictionary of lists
     const fetchAllImages = async () => {
         let allImages: { [key: string]: imagePost[] } = {};
         for (const category of categories) {
@@ -85,27 +87,51 @@ export default function App() {
             <StatusBar barStyle="dark-content" />
 
             <SafeAreaView style={styles.container}>
-                <Text style={styles.title}>Refreshing Carousel</Text>
-                {fetchError ? <Text style={styles.fetchErrorText}>{fetchError}</Text> : null}
+                <Text style={styles.title}>Photo showcase</Text>
+                {/* Wraps vertically scrollable content with a refresh drag at the top */}
                 <RefreshDrag
                     refreshHeight={50}
                     onRefresh={handleRefresh}
-                    style={{
-                        backgroundColor: '#888',
-                    }}
+                    
+                    renderRefresh={(pullProgress) => (
+                        <View style={{
+                            backgroundColor: '#fff',
+                            width: '100%',
+                            height: '100%',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+
+                        }}
+                        >
+                            {/* Change color of refresh icon depending on pull progress */}
+                             <MaterialIcons 
+                                name="refresh" 
+                                size={30} 
+                                color={
+                                    `rgb(
+                                        ${255 - 255 * pullProgress * pullProgress}, 
+                                        ${255 - 30 * pullProgress * pullProgress}, 
+                                        ${255 - 1 * pullProgress * pullProgress}
+                                    )`
+                                }
+
+                             />
+                        </View>
+                    )}
                 >
                     <>
-
+                    {/* Build a carousel list for each category */}
                     {categories.map((category, index) => {
                         return (
                             <View 
-                                id={category}
-
+                                key={category}
                             >
                                 <Text 
+                                    key={`category-${index}`}
                                     style={{
                                         textAlign: 'center',
                                         fontSize: 18,
+                                        fontWeight: 'bold',
                                         backgroundColor: '#fff',
                                         paddingTop: 10,
                                     }}
@@ -113,6 +139,7 @@ export default function App() {
                                     {category.toUpperCase()}
                                 </Text>
                                 <Carousel 
+                                    key={`carousel-${index}`}
                                     ref={(ref) => {
                                         carouselRefs.current[index] = ref;
                                     }}
@@ -137,14 +164,15 @@ export default function App() {
                                         }
                                     }}
                                     data={allImages[category] ?? []}
-                                    renderItem={( item ) => (
-                                        <View style={{
+                                    renderItem={( item, index ) => (
+                                        <View key={index} style={{
                                             width: '100%',
                                             height: '100%',
                                             borderWidth: 2,
                                             borderColor: '#000',
                                         }}>
                                             <Image 
+                                                key={`image${index}`}
                                                 source={typeof item.image === 'string' ? { uri: item.image } : item.image}
                                                 style={{ width: '100%', height: '90%', resizeMode: 'contain' }}
                                             />

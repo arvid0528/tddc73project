@@ -28,7 +28,6 @@ interface CarouselProps<T> {
 // Options and styling for the indicators
 interface IndicatorProps {
     visible?: boolean;
-    carouselStyle?: StyleProp<ViewStyle>;
     containerStyle?: StyleProp<ViewStyle>;
     indicatorStyle?: StyleProp<ViewStyle>;
     activeStyle?: StyleProp<ViewStyle>;
@@ -86,7 +85,7 @@ const Carousel = React.forwardRef<CarouselHandle, CarouselProps<any>>(
 
         const flatListRef = React.useRef<FlatList>(null);
 
-        // Controls the exposed scrollTOIndex method
+        // Controls the exposed scrollToIndex method
         React.useImperativeHandle(ref, () => ({
             scrollToIndex(index: number) {
                 const offset = index * (itemWidth + itemSpacing);

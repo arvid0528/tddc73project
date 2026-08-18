@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-    ActivityIndicator,
     LayoutChangeEvent,
     NativeScrollEvent,
     NativeSyntheticEvent,
@@ -27,12 +26,10 @@ export interface RefreshDragProps
     refreshHeight?: number;
 
     renderRefresh?: (
-        isRefreshing: boolean,
-        isReadyToRefresh: boolean,
+        pullProgress: number,
     ) => React.ReactNode;
 
     style?: StyleProp<ViewStyle>;
-    scrollViewStyle?: StyleProp<ViewStyle>;
     contentContainerStyle?: StyleProp<ViewStyle>;
 }
 
@@ -42,21 +39,39 @@ export default function RefreshDrag({
     refreshHeight = 80,
     renderRefresh,
     style,
-    scrollViewStyle,
     contentContainerStyle,
     ...scrollViewProps
 }: RefreshDragProps) {
 
-    const [isRefreshing, setIsRefreshing] = React.useState(false);
-    const [isReadyToRefresh, setIsReadyToRefresh] = React.useState(false);
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [pullProgress, setPullProgress] = React.useState(0);
     const [viewportHeight, setViewportHeight] = React.useState(0);
 
     const scrollViewRef = React.useRef<ScrollView>(null);
-    const hasTriggeredRefresh = React.useRef(false);
+    const isRefreshingRef = React.useRef(false);
     const hasSetInitialOffset = React.useRef(false);
+    const refreshTriggerOffset = 8;
 
+    const getPullProgress = React.useCallback((y: number) => {
+        const pullDistance = refreshHeight - y;
+        const triggerDistance = Math.max(1, refreshHeight - refreshTriggerOffset);
+        return Math.max(0, Math.min(1, pullDistance / triggerDistance));
+    }, [refreshHeight]);
+
+    const publishPullProgress = React.useCallback((progress: number) => {
+        setPullProgress(previous =>
+            previous === progress ? previous : progress,
+        );
+        // onPullProgress?.(progress);
+    }, []);
+
+    
     const resetScrollPosition = React.useCallback((animated: boolean) => {
-        scrollViewRef.current?.scrollTo({ x: 0, y: refreshHeight, animated });
+        scrollViewRef.current?.scrollTo({ 
+            x: 0, 
+            y: refreshHeight, 
+            animated,
+        });
     }, [refreshHeight]);
 
     React.useEffect(() => {
@@ -74,53 +89,57 @@ export default function RefreshDrag({
 
 
     const refresh = async () => {
-        if (isRefreshing) {
+        if (isRefreshingRef.current) {
             return;
         }
 
-        setIsRefreshing(true);
+        isRefreshingRef.current = true;
 
         try {
             await onRefresh();
         } finally {
-            setIsRefreshing(false);
-            setIsReadyToRefresh(false);
-            resetScrollPosition(true);
+            isRefreshingRef.current = false;
+            publishPullProgress(0);
+            resetScrollPosition(false);
         }
     };
-
 
     const handleScroll = (
         event: NativeSyntheticEvent<NativeScrollEvent>
     ) => {
         const y = event.nativeEvent.contentOffset.y;
-        const isReady = y <= 0;
+        const progress = getPullProgress(y);
 
-        setIsReadyToRefresh(previous =>
-            previous === isReady ? previous : isReady,
-        );
+        publishPullProgress(progress);
 
-        if (!isReady) {
-            hasTriggeredRefresh.current = false;
+        if (!isDragging) {
+            if (!isRefreshingRef.current && y < refreshHeight) {
+                resetScrollPosition(false);
+            }
+            return;
         }
     };
-
 
     const handleScrollEndDrag = (
         event: NativeSyntheticEvent<NativeScrollEvent>
     ) => {
         const y = event.nativeEvent.contentOffset.y;
+        const progress = getPullProgress(y);
+        setIsDragging(false);
+        publishPullProgress(0);
 
-        if (
-            y <= 0 &&
-            !hasTriggeredRefresh.current
-        ) {
-            hasTriggeredRefresh.current = true;
-
+        if (progress >= 1) {
             refresh().catch(console.error);
-        } else if (!isRefreshing && y < refreshHeight) {
-            resetScrollPosition(true);
+            return;
         }
+
+        if (!isRefreshingRef.current && y < refreshHeight) {
+            resetScrollPosition(false);
+        }
+    };
+
+    const handleScrollBeginDrag = () => {
+        setIsDragging(true);
     };
 
     const handleLayout = (event: LayoutChangeEvent) => {
@@ -128,26 +147,27 @@ export default function RefreshDrag({
     };
 
 
+    // Content and styling for refresh view
+    // Can be customized by implementing the renderRefresh prop with 
+    // pullProgress is normalized from 0 to 1; ready state is derived from it.
+    const isReadyToRefresh = isDragging && pullProgress >= 1;
+
+    // Can be customized by implementing the renderRefresh prop with pullProgress.
     const refreshContent =
         renderRefresh
             ? renderRefresh(
-                isRefreshing,
-                isReadyToRefresh
+                pullProgress,
             )
             :
             (
-                isRefreshing
-                    ? <ActivityIndicator />
-                    :
-                    <Text>
-                        {
-                            isReadyToRefresh
-                                ? 'Release to refresh'
-                                : 'Pull to refresh'
-                        }
-                    </Text>
+                <Text>
+                    {
+                        isReadyToRefresh
+                            ? 'Release to refresh'
+                            : 'Pull to refresh'
+                    }
+                </Text>
             );
-
 
     return (
         <View style={[styles.container, style]} onLayout={handleLayout}>
@@ -169,22 +189,18 @@ export default function RefreshDrag({
                 {...scrollViewProps}
                 ref={scrollViewRef}
 
-                style={[
-                    styles.scrollView,
-                    scrollViewStyle
-                ]}
-
                 contentContainerStyle={[
                     styles.content,
                     { minHeight: viewportHeight + refreshHeight },
                     contentContainerStyle
                 ]}
 
-                bounces={true}
-                alwaysBounceVertical={true}
-                overScrollMode="always"
+                bounces={false}
+                alwaysBounceVertical={false}
+                overScrollMode="never"
 
                 onScroll={handleScroll}
+                onScrollBeginDrag={handleScrollBeginDrag}
                 onScrollEndDrag={handleScrollEndDrag}
 
                 scrollEventThrottle={16}
